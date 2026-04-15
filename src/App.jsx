@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   Plus, Paperclip, Send, Database,
   Activity, User, TrendingUp, PieChart, Layout, Cpu, LogOut, Globe,
-  BarChart4, BrainCircuit, Globe2
+  BarChart4, BrainCircuit, Globe2, Download
 } from 'lucide-react';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -13,6 +13,8 @@ import { auth, db, provider, storage } from './firebase';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import { collection, addDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { ref, uploadBytes } from 'firebase/storage';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 
 const dict = {
   en: {
@@ -302,6 +304,36 @@ export default function App() {
   
   const chatEndRef = useRef(null);
   const fileInputRef = useRef(null);
+  const printRef = useRef(null);
+
+  const handleDownloadPDF = async () => {
+    const element = printRef.current;
+    if (!element) return;
+    try {
+      const canvas = await html2canvas(element, { scale: 2, useCORS: true, backgroundColor: '#0f172a' });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({ format: 'a4', unit: 'px' });
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      let position = 0;
+      
+      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
+      
+      let heightLeft = pdfHeight - pageHeight;
+      while (heightLeft > 0) {
+        position = position - pageHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
+        heightLeft -= pageHeight;
+      }
+      
+      pdf.save(`Brainwavecopilot_Report_${Date.now()}.pdf`);
+    } catch (e) {
+      console.error('Error generating PDF:', e);
+    }
+  };
 
   // Keep users logged in after refresh
   useEffect(() => {
@@ -578,7 +610,7 @@ export default function App() {
 
       <main className="main-workspace">
         <div className="chat-container">
-          <div className="chat-thread">
+          <div className="chat-thread" ref={printRef}>
             {messages.length === 1 && (
               <div className="empty-state-hero text-center">
                 <h1>{t.welcomeHeader}</h1>
@@ -686,6 +718,9 @@ export default function App() {
           <div className="input-bar-container">
             <button className="icon-button" onClick={() => fileInputRef.current?.click()} title={t.uploadDataTitle}>
               <Paperclip size={20} />
+            </button>
+            <button className="icon-button" onClick={handleDownloadPDF} title="Download Report as PDF">
+              <Download size={20} />
             </button>
 
             <input type="file" hidden ref={fileInputRef} onChange={handleFileUpload} accept=".xlsx,.xls,.csv" />
